@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Version & Vulnerability Checker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --primary: #0d6efd;
+            --secondary: #6c757d;
+            --success: #198754;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --bg: #f4f6f9;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 30px;
+            font-size: 2.2em;
+        }
+
+        form {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+            gap: 0;
+        }
+
+        input[type="text"] {
+            padding: 12px 16px;
+            width: 60%;
+            border: 2px solid #e0e0e0;
+            border-right: none;
+            border-radius: 6px 0 0 6px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            padding: 12px 24px;
+            background-color: var(--primary);
+            color: white;
+            border: 2px solid var(--primary);
+            border-radius: 0 6px 6px 0;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background-color: #0b5ed7;
+            border-color: #0b5ed7;
+            transform: translateY(-1px);
+        }
+
+        .result-box {
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            border-left: 5px solid var(--primary);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        }
+
+        .result-box h2 {
+            margin-top: 0;
+            color: var(--dark);
+            font-size: 1.5em;
+        }
+
+        .result-box h3 {
+            color: var(--dark);
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .result-box h4 {
+            color: var(--secondary);
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .safe {
+            color: var(--success);
+            font-weight: bold;
+            background-color: rgba(25, 135, 84, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .unsafe {
+            color: var(--danger);
+            font-weight: bold;
+            background-color: rgba(220, 53, 69, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .severity {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .severity.critical { background-color: #dc3545; color: white; }
+        .severity.high { background-color: #fd7e14; color: white; }
+        .severity.medium { background-color: var(--warning); color: var(--dark); }
+        .severity.low { background-color: var(--success); color: white; }
+        .severity.none { background-color: var(--secondary); color: white; }
+
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        li {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .cve-item { border-left-color: #6c757d; }
+        .cve-item.critical { border-left-color: #dc3545; background-color: rgba(220, 53, 69, 0.05); }
+        .cve-item.high { border-left-color: #fd7e14; background-color: rgba(253, 126, 20, 0.05); }
+        .cve-item.medium { border-left-color: var(--warning); background-color: rgba(255, 193, 7, 0.05); }
+        .cve-item.low { border-left-color: var(--success); background-color: rgba(25, 135, 84, 0.05); }
+
+        .cvss-score {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .cvss-score.critical { background-color: #dc3545; color: white; }
+        .cvss-score.high { background-color: #fd7e14; color: white; }
+        .cvss-score.medium { background-color: var(--warning); color: var(--dark); }
+        .cvss-score.low { background-color: var(--success); color: white; }
+
+        a { color: var(--primary); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .info-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: var(--secondary);
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .no-results {
+            text-align: center;
+            color: var(--secondary);
+            font-style: italic;
+            padding: 40px 20px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* CVE Scroll Container */
+        .cve-container {
+            max-height: 400px;   /* roughly fits ~10 CVEs */
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .cve-container::-webkit-scrollbar { width: 8px; }
+        .cve-container::-webkit-scrollbar-thumb { background: var(--secondary); border-radius: 6px; }
+        .cve-container::-webkit-scrollbar-thumb:hover { background: var(--dark); }
+
+        @media (max-width: 768px) {
+            .container { margin: 20px; padding: 15px; }
+            input[type="text"] { width: 100%; border-radius: 6px; border-right: 2px solid #e0e0e0; margin-bottom: 10px; }
+            button { width: 100%; border-radius: 6px; }
+            form { flex-direction: column; align-items: center; }
+            .info-grid { grid-template-columns: 1fr; }
+            h1 { font-size: 1.8em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Version & Vulnerability Checker</h1>
+        <form method="POST" onsubmit="showLoading()">
+            <input type="text" name="app_name" placeholder="Enter software name (e.g., VS Code, Chrome, Firefox)" required>
+            <button type="submit">Check</button>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Searching for vulnerabilities and version information...</p>
+        </div>
+
+        {% if results.app_name %}
+        <div class="result-box">
+            <h2>📦 Results for <em>{{ results.app_name }}</em></h2>
+           
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">📌 Latest Version:</span>
+                    {{ results.version or 'Not found' }}
+                </div>
+               
+                <div class="info-item">
+                    <span class="info-label">📅 Release Date:</span>
+                    {{ results.date or 'Not found' }}
+                </div>
+               
+                {% if results.source_url %}
+                <div class="info-item">
+                    <span class="info-label">🔗 Source:</span>
+                    <a href="{{ results.source_url }}" target="_blank" rel="noopener">View Details</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if results.description %}
+        <div class="result-box">
+            <h3>ℹ️ Description</h3>
+            <p>{{ results.description }}</p>
+            {% if results.description_url %}
+                <p><small><a href="{{ results.description_url }}" target="_blank" rel="noopener">Read more</a></small></p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="result-box">
+            <h3>🛡️ Vulnerability Analysis</h3>
+            {% if results.cve_list %}
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">⚠️ Severity Level:</span>
+                        <span class="severity {{ results.severity.lower() if results.severity else 'none' }}">
+                            {{ results.severity or 'None' }}
+                        </span>
+                    </div>
+                   
+                    <div class="info-item">
+                        <span class="info-label">📊 Highest CVSS Score:</span>
+                        {% if results.highest_score != 'N/A' %}
+                            <span class="cvss-score {% if results.highest_score >= 9.0 %}critical{% elif results.highest_score >= 7.0 %}high{% elif results.highest_score >= 4.0 %}medium{% else %}low{% endif %}">
+                                {{ results.highest_score }}
+                            </span>
+                        {% else %}
+                            {{ results.highest_score }}
+                        {% endif %}
+                    </div>
+                   
+                    <div class="info-item">
+                        <span class="info-label">📈 Average CVSS Score:</span>
+                        {% if results.avg_score != 'N/A' %}
+                            <span class="cvss-score {% if results.avg_score >= 9.0 %}critical{% elif results.avg_score >= 7.0 %}high{% elif results.avg_score >= 4.0 %}medium{% else %}low{% endif %}">
+                                {{ results.avg_score }}
+                            </span>
+                        {% else %}
+                            {{ results.avg_score }}
+                        {% endif %}
+                    </div>
+                   
+                    <div class="info-item">
+                        <span class="info-label">✅ Safe to Install:</span>
+                        {% if results.safe_to_install %}
+                            <span class="safe">Yes</span>
+                        {% else %}
+                            <span class="unsafe">No - Use Caution</span>
+                        {% endif %}
+                    </div>
+                
+                    <div class="info-item">
+                        <span class="info-label">Risk Assessment:</span>
+                        {% if results.severity == "Critical" %}
+                            <span class="critical">🔴 Critical (Unsafe)</span>
+                        {% elif results.severity == "High" %}
+                            <span class="high">❌ High (Unsafe)</span>
+                        {% elif results.severity == "Medium" %}
+                            <span class="medium">✅ OK (Safe)</span>
+                        {% elif results.severity == "Low" %}
+                            <span class="low">✅ Yes (Safe recommended )</span>
+                        {% elif results.severity == "None" %}
+                            <span class="none">✅ Yes (Safe)</span>
+                        {% else %}
+                            <span class="unknown">⚠️ Unknown</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">🔢 CVE Breakdown:</span>
+                    <ul style="display: flex; flex-wrap: wrap; gap: 15px; list-style: none; padding: 0; margin: 10px 0 0 0;">
+                        <li>🔴 Critical: {{ results.breakdown.critical }}</li>
+                        <li>🟠 High: {{ results.breakdown.high }}</li>
+                        <li>🟡 Medium: {{ results.breakdown.medium }}</li>
+                        <li>🟢 Low: {{ results.breakdown.low }}</li>
+                        <li>⚪ None: {{ results.breakdown.none }}</li>
+                        <li>📊 Total: {{ results.breakdown.total }}</li>
+                    </ul>
+                </div>
+
+                <h4>🔍 CVE Details ({{ results.cve_list|length }} found):</h4>
+                <div class="cve-container">
+                    <ul>
+                        {% for cve in results.cve_list %}
+                        <li class="cve-item {% if cve.cvss != 'N/A' and cve.cvss >= 9.0 %}critical{% elif cve.cvss != 'N/A' and cve.cvss >= 7.0 %}high{% elif cve.cvss != 'N/A' and cve.cvss >= 4.0 %}medium{% elif cve.cvss != 'N/A' and cve.cvss > 0 %}low{% endif %}">
+                            <strong>{{ cve.id }}</strong> |
+                            {% if cve.cvss != 'N/A' %}
+                                CVSS: <span class="cvss-score {% if cve.cvss >= 9.0 %}critical{% elif cve.cvss >= 7.0 %}high{% elif cve.cvss >= 4.0 %}medium{% else %}low{% endif %}">{{ cve.cvss }}</span>
+                            {% else %}
+                                CVSS: {{ cve.cvss }}
+                            {% endif %}
+                            <br>{{ cve.summary }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% else %}
+                <div class="no-results">
+                    <p>✅ Great news! No CVEs found in the NVD database for this software.</p>
+                    <p><small>This doesn't guarantee the software is completely secure, but indicates no publicly disclosed vulnerabilities were found.</small></p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- ✅ New Sections -->
+        <div class="result-box">
+            <h3>📊 Security Summary</h3>
+            {% if results.security_summary %}
+                <ul>
+                    {% for key, value in results.security_summary.items() %}
+                        <li>
+                            <strong>{{ key|capitalize }}:</strong>
+                            {% if value is iterable and value is not string %}
+                                {{ value|join(', ') }}
+                            {% else %}
+                                {{ value }}
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No security summary available.</p>
+            {% endif %}
+        </div>
+
+        <!-- ✅ Compliance Controls -->
+        <div class="result-box">
+            <h3>✅ Compliance Controls</h3>
+            {% if results.compliance %}
+                <ul>
+                    {% for control in results.compliance %}
+                        <li>
+                            <strong>{{ control.standard }}</strong> – 
+                            <span class="{% if control.status == 'Pass' %}text-green-600{% else %}text-red-600{% endif %}">
+                                {{ control.status }}
+                            </span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No compliance information available.</p>
+            {% endif %}
+        </div>
+
+        <!-- ✅ Security Analysis -->
+        <!-- ✅ Security Analysis -->
+        <!-- ✅ Security Analysis -->
+        <div class="result-box">
+            <h3>🔎 Security Analysis</h3>
+            {% if results.security_analysis %}
+                <ul>
+                {% set sections = results.security_analysis.split('•') %}
+                {% for sec in sections %}
+                    {% set sec = sec.strip() %}
+                    {% if sec %}
+                        {% set lines = sec.split('–') %}
+                        <li>
+                            <strong>{{ lines[0].strip() }}</strong>
+                            {% if lines|length > 1 %}
+                                <ul>
+                                {% for detail in lines[1:] %}
+                                    {% set detail = detail.strip() %}
+                                    {% if detail %}
+                                        <li>{{ detail }}</li>
+                                    {% endif %}
+                                {% endfor %}
+                                </ul>
+                            {% endif %}
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p>No detailed analysis available.</p>
+            {% endif %}
+        </div>
+
+        {% endif %}
+    </div>
+
+    <script>
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+        window.onload = function() {
+            document.getElementById('loading').style.display = 'none';
+        };
+    </script>
+</body>
+</html>
