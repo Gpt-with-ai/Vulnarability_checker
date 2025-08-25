@@ -10,8 +10,16 @@ from groq import Groq
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ======= CONFIG =======
-NVD_API_KEY = os.getenv("NVD_API_KEY", "9d2ad8c1-bc76-409d-b97e-a9eedf2ae1a8")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+
+NVD_API_KEY = os.getenv("NVD_API_KEY")
+if not NVD_API_KEY:
+    raise ValueError("NVD_API_KEY environment variable is required")
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    raise ValueError("GROQ_API_KEY environment variable is required")
+client = Groq(api_key=GROQ_API_KEY)
+
 MODEL = "moonshotai/kimi-k2-instruct"
 DEFAULT_LOOKBACK_DAYS = int(os.getenv("DEFAULT_LOOKBACK_DAYS", 180))
 # ======================
@@ -307,3 +315,4 @@ def index():
 
 if __name__ == "__main__":
     app.run(debug=True, port=5080)
+
