@@ -5,3 +5,7 @@ beautifulsoup4
 googlesearch-python
 lxml
 groq
+Flask-Session
+fpdf
+python-docx
+reportlab
