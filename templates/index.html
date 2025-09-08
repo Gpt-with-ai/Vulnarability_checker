@@ -261,27 +261,43 @@
             <div class="info-grid">
                 <div class="info-item">
                     <span class="info-label">📌 Latest Version:</span>
-                    {{ results.version or 'Not found' }}
+                    {{ metadata.latest_version or 'Not found' }}
                 </div>
                
                 <div class="info-item">
                     <span class="info-label">📅 Release Date:</span>
-                    {{ results.date or 'Not found' }}
+                    {{ metadata.release_date or 'Not found' }}
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">📅 Support Status:</span>
+                    {{ metadata.support_status or 'Not found' }}
                 </div>
                
-                {% if results.source_url %}
+                <div class="info-item">
+                    <span class="info-label">📅 Type :</span>
+                    {{ metadata.app_type or 'Not found' }}
+                </div>
+                
+                <div class="info-item">
+                    <span class="info-label">📅 License:</span>
+                    {{ metadata.license or 'Not found' }}
+                </div>
+
+               
+                {% if metadata.official_link %}
                 <div class="info-item">
                     <span class="info-label">🔗 Source:</span>
-                    <a href="{{ results.source_url }}" target="_blank" rel="noopener">View Details</a>
+                    <a href="{{ metadata.official_link }}" target="_blank" rel="noopener">View Details</a>
                 </div>
                 {% endif %}
             </div>
         </div>
 
-        {% if results.description %}
+        {% if metadata.description %}
         <div class="result-box">
             <h3>ℹ️ Description</h3>
-            <p>{{ results.description }}</p>
+            <p>{{ metadata.description }}</p>
             {% if results.description_url %}
                 <p><small><a href="{{ results.description_url }}" target="_blank" rel="noopener">Read more</a></small></p>
             {% endif %}
@@ -455,6 +471,13 @@
                 <p>No detailed analysis available.</p>
             {% endif %}
         </div>
+
+        {% if results %}
+            <form method="POST" action="{{ url_for('download_report') }}">
+                <input type="hidden" name="app_name" value="{{ results['app_name'] }}">
+                <button type="submit">Download Report</button>
+            </form>
+        {% endif %}
 
         {% endif %}
     </div>
