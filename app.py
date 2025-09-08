@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request ,send_from_directory,session,send_file
+from flask_session import Session
 from googlesearch import search
 import requests
 from bs4 import BeautifulSoup
@@ -8,6 +9,17 @@ import time, os, socket, ssl, json
 from datetime import datetime
 from groq import Groq
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from flask import make_response
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from io import BytesIO
+from fpdf import FPDF
+from docx import Document
+import textwrap
+
+import uuid
+
+report_cache = {}  # temporary in-memory store
 
 # ======= CONFIG =======
 
@@ -28,7 +40,14 @@ app = Flask(__name__)
 client = Groq(api_key=GROQ_API_KEY)
 COMMON_TLDS = [".com", ".org", ".net", ".ai", ".dev", ".io"]
 RISKY_PORTS = [21, 23, 25, 110, 143, 3389]
+app.secret_key = 'kejbsughuw'
 
+
+app.config['SESSION_TYPE'] = 'filesystem'
+# app.config['SESSION_FILE_DIR'] = os.path.join(app.root_path, 'flask_sessions')    # or any safe writable directory
+app.config['SESSION_PERMANENT'] = False
+
+Session(app)
 # ================== NVD Vulnerability Search ==================
 def search_vulnerabilities_nvd(app_name):
     try:
@@ -206,7 +225,87 @@ def fetch_app_description(app_name, search_results):
         app.logger.exception("GitHub description fallback failed")
  
     return None, None
+# ===================================================================================================================
+def llm_resolve_domain(app_name: str) -> str:
+    try:
+        prompt = f"Return only the official primary website domain for '{app_name}'."
+        resp = client.chat.completions.create(
+            model=MODEL,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=100
+        )
+        text = resp.choices[0].message.content.strip().lower()
+        if text.startswith("http"):
+            text = text.split("//")[-1]
+        return text.split("/")[0]
+    except Exception:
+        return ""
 
+def validate_domain(domain: str) -> bool:
+    try:
+        socket.gethostbyname(domain)
+        return True
+    except:
+        return False
+
+def resolve_application_domain(app_name: str) -> str:
+    domain = llm_resolve_domain(app_name)
+    if domain and validate_domain(domain):
+        return domain
+    key = app_name.replace(" ", "").lower()
+    for tld in COMMON_TLDS:
+        test_domain = key + tld
+        if validate_domain(test_domain):
+            return test_domain
+    return "unknown"
+
+# ============ FETCH METADATA ============
+def fetch_app_metadata(app_name: str, domain: str):
+    prompt = f"""
+    Provide JSON with these keys for '{app_name}' ({domain}):
+    - description
+    - license
+    - app_type
+    - latest_version
+    - release_date
+    - support_status
+    - official_link
+    """
+    try:
+        resp = client.chat.completions.create(
+            model=MODEL,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=250
+        )
+        text = resp.choices[0].message.content.strip()
+
+        # Clean up markdown formatting if present
+        if "```json" in text:
+            text = text.replace("```json", "").replace("```", "").strip()
+
+        parsed = json.loads(text)
+
+        # Handle case where description contains embedded JSON
+        if isinstance(parsed.get("description"), str):
+            try:
+                inner = json.loads(parsed["description"])
+                parsed.update(inner)
+            except:
+                pass
+
+        for field in ["license", "app_type", "latest_version", "release_date", "support_status", "official_link"]:
+            parsed.setdefault(field, "unknown")
+
+        return parsed
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
+
+# =========================================================
 # ================== Security & Compliance ==================
 def llm_resolve_domain(app_name: str) -> str:
     try:
@@ -224,13 +323,6 @@ def validate_domain(domain: str) -> bool:
         return requests.get(f"https://{domain}", timeout=3).status_code < 500
     except: return False
 
-def resolve_application_domain(app_name: str) -> str:
-    domain = llm_resolve_domain(app_name)
-    if domain and validate_domain(domain): return domain
-    for tld in COMMON_TLDS:
-        cand = app_name.replace(" ", "").lower() + tld
-        if validate_domain(cand): return cand
-    return "unknown"
 
 def probe_ports(domain: str, ports=None):
     if ports is None: ports = [21,22,25,53,80,110,143,443,465,587,993,995,3306,3389,8080]
@@ -262,10 +354,20 @@ def llm_report(app_name, domain, summary, controls):
     except Exception as e:
         return f"[LLM error: {e}]"
 
+
+
+# =============================================================================================================
+
+
+
+
+# =============================================================================================================
+
 # ================== ROUTE ==================
 @app.route("/", methods=["GET", "POST"])
 def index():
     results = {}
+    metadata = {}
     if request.method == "POST":
         app_name = request.form.get("app_name", "").strip()
         if app_name:
@@ -278,6 +380,7 @@ def index():
                 v, d = extract_version_and_date(url)
                 if v: version, date, source_url = v, d, url; break
 
+            domain = resolve_application_domain(app_name)
             # --- Description ---
             description, description_url = fetch_app_description(app_name,search_results)
 
@@ -291,7 +394,7 @@ def index():
                 severity, safe_to_install, highest_score, avg_score, breakdown = None, None, None, None, None
 
             # --- Security & Compliance ---
-            domain = resolve_application_domain(app_name)
+            
             summary, controls, report = {}, {}, None
             if domain != "unknown":
                 ports = probe_ports(domain); ssl_ok = check_ssl(domain)
@@ -301,6 +404,7 @@ def index():
                     "NIST 800-53 – SC-7 (Boundary Protection)": "Fail" if any(p in ports for p in RISKY_PORTS) else "Pass"
                 }
                 report = llm_report(app_name, domain, summary, controls)
+                metadata = fetch_app_metadata(app_name, domain)
 
             results = {
                 "app_name": app_name,
@@ -311,9 +415,150 @@ def index():
                 "security_summary": summary, "compliance": [{"standard": k, "status": v} for k,v in controls.items()],
                 "security_analysis": report
             }
-    return render_template("index.html", results=results)
+            # session['report_data'] = results
+            # session['report_metadata'] = metadata
+
+            # ✅ generate unique key
+            report_id = str(uuid.uuid4())
+            report_cache[report_id] = (results, metadata)
+
+            # ✅ store only the small key in session
+            session['report_id'] = report_id
+            
+    return render_template("index.html", results=results,metadata=metadata)
+@app.route("/download_report", methods=["POST"])
+def download_report():
+    app_name = request.form.get("app_name")
+    report_id = session.get("report_id")
+
+    if not report_id or report_id not in report_cache:
+        return "No report data available. Please analyze an app first.", 400
+
+    results, metadata = report_cache[report_id]
+
+    if not results or results.get("app_name") != app_name:
+        return "No report data found for this application.", 400
+
+    # ---- PDF Generation ----
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    x_margin, y_margin = 50, 50
+    y = height - y_margin
+    max_line_width = width
+
+    def write_line(text, font="Helvetica", size=10, leading=14, bullet=False):
+        nonlocal y
+        p.setFont(font, size)
+        max_chars = int(max_line_width / (size * 0.55))  # char width scaling
+        lines = textwrap.wrap(text, width=max_chars) or [""]
+
+        for i, line in enumerate(lines):
+            if y < y_margin:
+                p.showPage()
+                y = height - y_margin
+                p.setFont(font, size)
+
+            prefix = "• " if bullet and i == 0 else "   " if bullet else ""
+            p.drawString(x_margin, y, prefix + line)
+            y -= leading
+
+    def write_section(title, size=14):
+        nonlocal y
+        y -= 10  # spacing before section
+        p.setFont("Helvetica-Bold", size)
+        p.drawString(x_margin, y, title)
+        y -= 6
+        p.setLineWidth(0.5)
+        p.line(x_margin, y, width - x_margin, y)
+        y -= 14
+
+    # ---- Header ----
+    p.setTitle(f"{app_name} Security Report")
+    p.setFont("Helvetica-Bold", 18)
+    p.drawCentredString(width / 2, y, f"Security & Compliance Report: {app_name}")
+    y -= 30
+    p.setFont("Helvetica", 10)
+    p.drawCentredString(width / 2, y, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    y -= 40
+
+    # ---- Metadata ----
+    write_section("Application Metadata")
+    write_line(f"Version: {metadata.get('latest_version', 'N/A')}")
+    write_line(f"Release Date: {metadata.get('release_date', 'N/A')}")
+    write_line(f"Support Status: {metadata.get('support_status','N/A')}")
+    write_line(f"App Type : {metadata.get('app_type','N/A')}")
+    write_line(f"Official Source: {metadata.get('official_link', 'N/A')}")
+    write_line(f"Description URL: {results.get('description_url', 'N/A')}")
+
+    # ---- Description ----
+    write_section("Description")
+    desc = metadata.get("description") or "N/A"
+    for line in desc.split("\n"):
+        write_line(line.strip())
+
+    # ---- CVE Summary ----
+    write_section("CVE Summary")
+    write_line(f"Severity: {results.get('severity')}")
+    write_line(f"Safe to Install: {results.get('safe_to_install')}")
+    write_line(f"Highest CVSS Score: {results.get('highest_score')}")
+    write_line(f"Average CVSS Score: {results.get('avg_score')}")
+    breakdown = results.get("breakdown", {})
+    for k, v in breakdown.items():
+        write_line(f"{k.capitalize()}: {v}")
+
+    # ---- CVE List ----
+    write_section("Top Vulnerabilities")
+    cve_list = results.get("cve_list", [])[:10]
+    if not cve_list:
+        write_line("No known vulnerabilities found.")
+    for cve in cve_list:
+        write_line(f"{cve['id']}  (CVSS {cve['cvss']})", font="Helvetica-Bold", bullet=True)
+        write_line(f"{cve['summary'][:200]}...", leading=12)
+
+    # ---- Security ----
+    write_section("Security Summary")
+    sec = results.get("security_summary", {})
+    for k, v in sec.items():
+        write_line(f"{k}: {v}", bullet=True)
+
+    # ---- Compliance ----
+    write_section("Compliance Controls")
+    for c in results.get("compliance", []):
+        write_line(f"{c['standard']}: {c['status']}", bullet=True)
+
+    # ---- LLM Report ----
+    write_section("LLM Security Analysis")
+    report = results.get("security_analysis") or "N/A"
+    for line in report.split("\n"):
+        write_line(line.strip())
+
+    # ---- Additional Metadata ----
+    # if metadata:
+    #     write_section("Additional Metadata")
+    #     for key, val in metadata.items():
+    #         write_line(f"{key.replace('_', ' ').title()}: {val}", bullet=True)
+
+    # ---- Footer with page numbers ----
+    def add_page_number(canvas, doc):
+        page_num = canvas.getPageNumber()
+        canvas.setFont("Helvetica", 8)
+        canvas.drawRightString(width - x_margin, 20, f"Page {page_num}")
+
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=f"{app_name}_security_report.pdf",
+        mimetype="application/pdf"
+    )
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+
 
 
