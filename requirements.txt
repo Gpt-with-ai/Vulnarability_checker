@@ -9,3 +9,4 @@ Flask-Session
 fpdf
 python-docx
 reportlab
+ddgs
