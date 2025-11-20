@@ -220,9 +220,8 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* CVE Scroll Container */
         .cve-container {
-            max-height: 400px;   /* roughly fits ~10 CVEs */
+            max-height: 400px;
             overflow-y: auto;
             padding-right: 10px;
         }
@@ -230,7 +229,20 @@
         .cve-container::-webkit-scrollbar { width: 8px; }
         .cve-container::-webkit-scrollbar-thumb { background: var(--secondary); border-radius: 6px; }
         .cve-container::-webkit-scrollbar-thumb:hover { background: var(--dark); }
+        .exploits-container {
+            max-height: 300px;   /* adjust as you like */
+            overflow-y: auto;
+            padding-right: 10px;
+        }
 
+        .exploits-container::-webkit-scrollbar { width: 8px; }
+        .exploits-container::-webkit-scrollbar-thumb {
+            background: var(--secondary);
+            border-radius: 6px;
+        }
+        .exploits-container::-webkit-scrollbar-thumb:hover {
+            background: var(--dark);
+        }
         @media (max-width: 768px) {
             .container { margin: 20px; padding: 15px; }
             input[type="text"] { width: 100%; border-radius: 6px; border-right: 2px solid #e0e0e0; margin-bottom: 10px; }
@@ -257,13 +269,13 @@
         {% if results.app_name %}
         <div class="result-box">
             <h2>📦 Results for <em>{{ results.app_name }}</em></h2>
-           
+
             <div class="info-grid">
                 <div class="info-item">
                     <span class="info-label">📌 Latest Version:</span>
                     {{ metadata.latest_version or 'Not found' }}
                 </div>
-               
+
                 <div class="info-item">
                     <span class="info-label">📅 Release Date:</span>
                     {{ metadata.release_date or 'Not found' }}
@@ -273,18 +285,17 @@
                     <span class="info-label">📅 Support Status:</span>
                     {{ metadata.support_status or 'Not found' }}
                 </div>
-               
+
                 <div class="info-item">
                     <span class="info-label">📅 Type :</span>
                     {{ metadata.app_type or 'Not found' }}
                 </div>
-                
+
                 <div class="info-item">
                     <span class="info-label">📅 License:</span>
                     {{ metadata.license or 'Not found' }}
                 </div>
 
-               
                 {% if metadata.official_link %}
                 <div class="info-item">
                     <span class="info-label">🔗 Source:</span>
@@ -314,29 +325,37 @@
                             {{ results.severity or 'None' }}
                         </span>
                     </div>
-                   
+
                     <div class="info-item">
                         <span class="info-label">📊 Highest CVSS Score:</span>
-                        {% if results.highest_score != 'N/A' %}
-                            <span class="cvss-score {% if results.highest_score >= 9.0 %}critical{% elif results.highest_score >= 7.0 %}high{% elif results.highest_score >= 4.0 %}medium{% else %}low{% endif %}">
+                        {% if results.highest_score != 'N/A' and results.highest_score is not none %}
+                            <span class="cvss-score
+                                {% if results.highest_score >= 9.0 %}critical
+                                {% elif results.highest_score >= 7.0 %}high
+                                {% elif results.highest_score >= 4.0 %}medium
+                                {% else %}low{% endif %}">
                                 {{ results.highest_score }}
                             </span>
                         {% else %}
                             {{ results.highest_score }}
                         {% endif %}
                     </div>
-                   
+
                     <div class="info-item">
                         <span class="info-label">📈 Average CVSS Score:</span>
-                        {% if results.avg_score != 'N/A' %}
-                            <span class="cvss-score {% if results.avg_score >= 9.0 %}critical{% elif results.avg_score >= 7.0 %}high{% elif results.avg_score >= 4.0 %}medium{% else %}low{% endif %}">
+                        {% if results.avg_score != 'N/A' and results.avg_score is not none %}
+                            <span class="cvss-score
+                                {% if results.avg_score >= 9.0 %}critical
+                                {% elif results.avg_score >= 7.0 %}high
+                                {% elif results.avg_score >= 4.0 %}medium
+                                {% else %}low{% endif %}">
                                 {{ results.avg_score }}
                             </span>
                         {% else %}
                             {{ results.avg_score }}
                         {% endif %}
                     </div>
-                   
+
                     <div class="info-item">
                         <span class="info-label">✅ Safe to Install:</span>
                         {% if results.safe_to_install %}
@@ -345,7 +364,7 @@
                             <span class="unsafe">No - Use Caution</span>
                         {% endif %}
                     </div>
-                
+
                     <div class="info-item">
                         <span class="info-label">Risk Assessment:</span>
                         {% if results.severity == "Critical" %}
@@ -355,7 +374,7 @@
                         {% elif results.severity == "Medium" %}
                             <span class="medium">✅ OK (Safe)</span>
                         {% elif results.severity == "Low" %}
-                            <span class="low">✅ Yes (Safe recommended )</span>
+                            <span class="low">✅ Yes (Safe recommended)</span>
                         {% elif results.severity == "None" %}
                             <span class="none">✅ Yes (Safe)</span>
                         {% else %}
@@ -363,6 +382,7 @@
                         {% endif %}
                     </div>
                 </div>
+
                 <div class="info-item">
                     <span class="info-label">🔢 CVE Breakdown:</span>
                     <ul style="display: flex; flex-wrap: wrap; gap: 15px; list-style: none; padding: 0; margin: 10px 0 0 0;">
@@ -379,10 +399,20 @@
                 <div class="cve-container">
                     <ul>
                         {% for cve in results.cve_list %}
-                        <li class="cve-item {% if cve.cvss != 'N/A' and cve.cvss >= 9.0 %}critical{% elif cve.cvss != 'N/A' and cve.cvss >= 7.0 %}high{% elif cve.cvss != 'N/A' and cve.cvss >= 4.0 %}medium{% elif cve.cvss != 'N/A' and cve.cvss > 0 %}low{% endif %}">
+                        <li class="cve-item
+                            {% if cve.cvss != 'N/A' and cve.cvss >= 9.0 %}critical
+                            {% elif cve.cvss != 'N/A' and cve.cvss >= 7.0 %}high
+                            {% elif cve.cvss != 'N/A' and cve.cvss >= 4.0 %}medium
+                            {% elif cve.cvss != 'N/A' and cve.cvss > 0 %}low{% endif %}">
                             <strong>{{ cve.id }}</strong> |
                             {% if cve.cvss != 'N/A' %}
-                                CVSS: <span class="cvss-score {% if cve.cvss >= 9.0 %}critical{% elif cve.cvss >= 7.0 %}high{% elif cve.cvss >= 4.0 %}medium{% else %}low{% endif %}">{{ cve.cvss }}</span>
+                                CVSS: <span class="cvss-score
+                                    {% if cve.cvss >= 9.0 %}critical
+                                    {% elif cve.cvss >= 7.0 %}high
+                                    {% elif cve.cvss >= 4.0 %}medium
+                                    {% else %}low{% endif %}">
+                                    {{ cve.cvss }}
+                                </span>
                             {% else %}
                                 CVSS: {{ cve.cvss }}
                             {% endif %}
@@ -399,7 +429,6 @@
             {% endif %}
         </div>
 
-        <!-- ✅ New Sections -->
         <div class="result-box">
             <h3>📊 Security Summary</h3>
             {% if results.security_summary %}
@@ -420,14 +449,13 @@
             {% endif %}
         </div>
 
-        <!-- ✅ Compliance Controls -->
         <div class="result-box">
             <h3>✅ Compliance Controls</h3>
             {% if results.compliance %}
                 <ul>
                     {% for control in results.compliance %}
                         <li>
-                            <strong>{{ control.standard }}</strong> – 
+                            <strong>{{ control.standard }}</strong> –
                             <span class="{% if control.status == 'Pass' %}text-green-600{% else %}text-red-600{% endif %}">
                                 {{ control.status }}
                             </span>
@@ -439,9 +467,6 @@
             {% endif %}
         </div>
 
-        <!-- ✅ Security Analysis -->
-        <!-- ✅ Security Analysis -->
-        <!-- ✅ Security Analysis -->
         <div class="result-box">
             <h3>🔎 Security Analysis</h3>
             {% if results.security_analysis %}
@@ -472,10 +497,51 @@
             {% endif %}
         </div>
 
+        <!-- 🔥 Threat Intelligence & Patch Status -->
+         <div class="result-box">
+            <h3>🔥 Threat Intelligence & Patch Status</h3>
+
+            {% if results.threat_intel %}
+                {% set ti = results.threat_intel %}
+
+                <!-- ONLY KEEPING: Recent Attacks / News -->
+
+                <h4>📰 Recent Security Attacks / News</h4>
+
+                {% if ti.recent_attacks and ti.recent_attacks|length > 0 %}
+                    <div class="exploits-container">
+                        <ul>
+                            {% for a in ti.recent_attacks %}
+                                <li class="cve-item medium">
+                                    <strong>{{ a.title }}</strong><br>
+                                    <small>Source: {{ a.source or 'Unknown' }} | Date: {{ a.date or 'Unknown' }}</small>
+                                    <br>
+                                    <a href="{{ a.url }}" target="_blank" rel="noopener">Read full article</a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% else %}
+                    <p>No recent attacks or security news found for this application.</p>
+                {% endif %}
+
+            {% else %}
+                <p>No threat intelligence could be retrieved for this application.</p>
+            {% endif %}
+        </div>
+
+        <!-- Report Buttons -->
+        
+
         {% if results %}
-            <form method="POST" action="{{ url_for('download_report') }}">
+            <form method="POST" action="{{ url_for('download_report') }}" style="display:inline-block; margin-right:10px;">
                 <input type="hidden" name="app_name" value="{{ results['app_name'] }}">
-                <button type="submit">Download Report</button>
+                <button type="submit">Download PDF Report</button>
+            </form>
+
+            <form method="POST" action="{{ url_for('download_report_docx') }}" style="display:inline-block;">
+                <input type="hidden" name="app_name" value="{{ results['app_name'] }}">
+                <button type="submit">Download DOCX Report</button>
             </form>
         {% endif %}
 
