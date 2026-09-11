@@ -47,7 +47,7 @@ if not GROQ_API_KEY:
 
 client = Groq(api_key=GROQ_API_KEY)
 
-MODEL = "moonshotai/kimi-k2-instruct"
+MODEL = "moonshotai/kimi-k2-instruct-0905"
 DEFAULT_LOOKBACK_DAYS = int(os.getenv("DEFAULT_LOOKBACK_DAYS", 180))
 
 COMMON_TLDS = [".com", ".org", ".net", ".ai", ".dev", ".io"]
